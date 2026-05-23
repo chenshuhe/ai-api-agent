@@ -34,7 +34,7 @@ An LLM-powered API agent that converts OpenAPI specs into function-calling tools
 ### 1. 克隆项目
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/chenshuhe/ai-api-agent
 cd agent
 ```
 
