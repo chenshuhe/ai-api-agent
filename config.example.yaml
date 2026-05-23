@@ -1,0 +1,55 @@
+# ============================================================
+# AI API Agent 配置文件模板
+# 复制此文件为 config.yaml 并填入实际值:
+#   cp config.example.yaml config.yaml
+# ============================================================
+
+model:
+  provider: openai              # openai / anthropic / ollama
+  name: deepseek-v4-flash
+  base_url: https://api.deepseek.com/v1
+  api_key: ${DEEPSEEK_API_KEY}  # 使用环境变量，或直接填写 key
+  temperature: 0.1
+  max_tokens: 4096
+
+# 后端 API 文档地址（OpenAPI/Swagger JSON）
+api_docs:
+  urls:
+  - http://127.0.0.1/api/game/v3/api-docs
+  - http://127.0.0.1/api/user/v3/api-docs
+  timeout: 30
+
+# 后端 API 认证方式
+api_auth:
+  type: none                    # none / basic / bearer
+
+# 自动登录配置
+auto_login:
+  enabled: true
+  header_name: X-Dts-Admin-Token
+  login_hint: 手机号             # 提示用户输入什么信息来登录
+
+# Java 项目源码目录（可选，用于错误分析时代码检索）
+project_dir: /path/to/your/java/project
+
+# 多环境配置
+api_scenarios:
+  active: default
+  list:
+  - name: default
+    description: 文档默认地址
+    mapping: {}
+  - name: production
+    description: 线上环境
+    mapping:
+      http://your-internal-server:port: https://api.prod.example.com
+
+# 全局请求参数（会附加到所有 API 调用）
+global_params:
+- name: X-Dts-Admin-Token
+  value: ${AUTH_TOKEN}
+  type: header
+
+server:
+  host: 0.0.0.0
+  port: 8000
