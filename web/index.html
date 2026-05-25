@@ -1,251 +1,801 @@
 <!DOCTYPE html>
-<!--
-  AI API Agent - Web 聊天界面
-  =============================
-  布局：左侧边栏（状态/对话/配置/工具） + 右侧聊天区
-  通信：SSE (Server-Sent Events) 流式接收 AI 回复
-  样式：深色主题，可折叠面板，响应式
--->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI API 助手</title>
+<title>AI API Agent</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1a1a2e; color: #eee; display: flex; height: 100vh;
+/* ====== Reset & Variables ====== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-primary:#0f1117;
+  --bg-secondary:#161822;
+  --bg-tertiary:#1c1f2e;
+  --bg-hover:#252836;
+  --border:#2a2d3a;
+  --text-primary:#eef0f6;
+  --text-secondary:#8b8fa8;
+  --text-muted:#595e78;
+  --accent:#6c5ce7;
+  --accent-light:#a29bfe;
+  --accent-glow:rgba(108,92,231,0.25);
+  --red:#ff6b6b;
+  --green:#51cf66;
+  --orange:#ffa94d;
+  --radius:10px;
+  --radius-sm:6px;
+  --shadow:0 4px 24px rgba(0,0,0,0.3);
+  --transition:0.2s cubic-bezier(0.4,0,0.2,1);
 }
-/* ---- Sidebar ---- */
-.sidebar {
-    width: 340px; background: #16213e; display: flex; flex-direction: column;
-    border-right: 1px solid #0f3460; flex-shrink: 0; overflow: hidden;
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+/* ====== Layout ====== */
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  background:var(--bg-primary);color:var(--text-primary);
+  display:flex;height:100vh;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
 }
-.sidebar-header { padding: 12px 16px; border-bottom: 1px solid #0f3460; display: flex; justify-content: space-between; align-items: center; }
-.sidebar-header h2 { font-size: 1em; color: #e94560; }
-.sidebar-body { flex: 1; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
-/* ---- Sections ---- */
-.section { border: 1px solid #0f3460; border-radius: 6px; overflow: hidden; }
-.section-header {
-    padding: 8px 10px; background: #0f3460; cursor: pointer; user-select: none;
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 0.82em; font-weight: bold;
+/* ====== Sidebar ====== */
+.sidebar{
+  width:360px;background:var(--bg-secondary);
+  display:flex;flex-direction:column;flex-shrink:0;
+  border-right:1px solid var(--border);z-index:10;
 }
-.section-header:hover { background: #1a3060; }
-.section-header .arrow { transition: transform 0.2s; font-size: 0.65em; }
-.section-header .arrow.open { transform: rotate(90deg); }
-.section-body { padding: 8px 10px; display: none; }
-.section-body.open { display: block; }
-/* ---- Status ---- */
-.status-block { padding: 4px 0; font-size: 0.75em; line-height: 1.5; }
-.status-block .label { color: #888; }
-/* ---- Conv List ---- */
-.conv-list { max-height: 180px; overflow-y: auto; }
-.conv-item {
-    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-    margin-bottom: 3px; background: #1a1a2e; border-radius: 4px;
-    cursor: pointer; font-size: 0.78em; border-left: 3px solid transparent;
+.sidebar-header{
+  padding:16px 20px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
 }
-.conv-item.active { border-left-color: #e94560; background: #0f3460; }
-.conv-item .conv-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conv-item .conv-info { font-size: 0.8em; color: #888; }
-.conv-item .conv-del { color: #e94560; cursor: pointer; padding: 2px 6px; display: none; }
-.conv-item:hover .conv-del { display: block; }
-/* ---- Form ---- */
-.form-group { margin-bottom: 8px; }
-.form-group label { display: block; font-size: 0.72em; color: #aaa; margin-bottom: 2px; }
-.form-group input, .form-group select {
-    width: 100%; padding: 5px 7px; font-size: 0.78em;
-    border: 1px solid #0f3460; border-radius: 4px;
-    background: #1a1a2e; color: #eee; outline: none;
+.sidebar-header .logo{
+  display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.05em;
 }
-.form-group input:focus, .form-group select:focus { border-color: #e94560; }
-.form-row { display: flex; gap: 6px; align-items: flex-end; }
-.form-row .form-group { flex: 1; }
-.btn {
-    padding: 5px 10px; border: none; border-radius: 4px;
-    cursor: pointer; font-size: 0.76em; transition: background 0.2s; white-space: nowrap;
+.sidebar-header .logo .icon{
+  width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent-light));
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1em;
 }
-.btn-primary { background: #e94560; color: #fff; }
-.btn-primary:hover { background: #d63851; }
-.btn-secondary { background: #0f3460; color: #eee; }
-.btn-secondary:hover { background: #1a3060; }
-.btn-danger { background: transparent; color: #e94560; border: 1px solid #e94560; }
-.btn-danger:hover { background: #e94560; color: #fff; }
-.btn-sm { padding: 3px 6px; font-size: 0.7em; }
-/* ---- URL list ---- */
-.url-list { margin-bottom: 6px; }
-.url-item {
-    display: flex; gap: 3px; align-items: center;
-    padding: 3px 5px; margin-bottom: 2px;
-    background: #1a1a2e; border-radius: 4px; font-size: 0.74em;
+.sidebar-body{
+  flex:1;overflow-y:auto;padding:12px 16px;
+  display:flex;flex-direction:column;gap:8px;
 }
-.url-item span { flex: 1; word-break: break-all; color: #ccc; }
-.url-item button { background: none; border: none; color: #e94560; cursor: pointer; font-size: 0.9em; }
-/* ---- Params ---- */
-.param-table { width: 100%; font-size: 0.74em; margin-bottom: 6px; }
-.param-table th { text-align: left; color: #888; font-weight: normal; padding: 2px 4px; }
-.param-table td { padding: 2px 4px; }
-.param-table input, .param-table select {
-    width: 100%; padding: 3px 5px; font-size: 0.95em;
-    border: 1px solid #0f3460; border-radius: 3px;
-    background: #1a1a2e; color: #eee; outline: none;
+/* ====== Section Panel ====== */
+.panel{
+  background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;transition:var(--transition);
 }
-.param-table .btn-del { background: none; border: none; color: #e94560; cursor: pointer; }
-/* ---- Sidebar Footer ---- */
-.sidebar-footer {
-    padding: 8px 12px; border-top: 1px solid #0f3460;
-    display: flex; flex-direction: column; gap: 5px;
+.panel-header{
+  padding:10px 14px;display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;user-select:none;font-size:0.82em;font-weight:600;
+  color:var(--text-secondary);letter-spacing:0.3px;
+  transition:var(--transition);
 }
-/* ---- Chat ---- */
-.chat-container { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.chat-header {
-    padding: 12px 16px; background: #16213e; border-bottom: 1px solid #0f3460;
-    font-size: 0.9em; display: flex; justify-content: space-between; align-items: center;
+.panel-header:hover{background:var(--bg-hover);color:var(--text-primary)}
+.panel-header .caret{
+  font-size:0.6em;transition:transform 0.2s;opacity:0.5;
 }
-.chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.message { max-width: 80%; padding: 10px 14px; border-radius: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; font-size: 0.9em; }
-.message.user { align-self: flex-end; background: #e94560; color: #fff; }
-.message.assistant { align-self: flex-start; background: #0f3460; color: #eee; }
-.message.system { align-self: center; background: transparent; color: #888; font-size: 0.75em; padding: 2px 6px; }
-.chat-input { padding: 12px 16px; background: #16213e; display: flex; gap: 8px; border-top: 1px solid #0f3460; }
-.chat-input input {
-    flex: 1; padding: 10px 14px; border: 1px solid #0f3460; border-radius: 8px;
-    background: #1a1a2e; color: #eee; font-size: 0.9em; outline: none;
+.panel-header .caret.open{transform:rotate(90deg);opacity:1}
+.panel-body{display:none;padding:10px 14px;border-top:1px solid var(--border)}
+.panel-body.open{display:block}
+/* ====== Conversation List ====== */
+.conv-list{max-height:200px;overflow-y:auto}
+.conv-item{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:3px;
+  border-radius:var(--radius-sm);cursor:pointer;font-size:0.8em;
+  transition:var(--transition);border:1px solid transparent;
 }
-.chat-input input:focus { border-color: #e94560; }
-.chat-input button {
-    padding: 8px 16px; background: #e94560; color: #fff;
-    border: none; border-radius: 8px; cursor: pointer; font-size: 0.9em;
+.conv-item:hover{background:var(--bg-hover)}
+.conv-item.active{
+  background:var(--accent-glow);border-color:var(--accent);
 }
-.chat-input button:hover { background: #d63851; }
-.chat-input button:disabled { background: #555; cursor: not-allowed; }
-.chat-input .btn-test { background: #0f3460; }
-.chat-input .btn-test:hover { background: #1a4a80; }
-.loading { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #e94560; animation: blink 1s infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-.toast {
-    position: fixed; top: 16px; right: 16px; padding: 10px 16px;
-    border-radius: 6px; color: #fff; font-size: 0.8em; z-index: 1000;
-    animation: fadeIn 0.3s;
+.conv-item .conv-icon{font-size:1em;flex-shrink:0}
+.conv-item .conv-info{flex:1;min-width:0}
+.conv-item .conv-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-item .conv-meta{font-size:0.78em;color:var(--text-muted);margin-top:2px}
+.conv-item .conv-del{
+  opacity:0;color:var(--red);cursor:pointer;padding:4px;font-size:0.85em;
+  transition:var(--transition);border-radius:4px;
 }
-.toast.success { background: #2e7d32; }
-.toast.error { background: #c62828; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+.conv-item:hover .conv-del{opacity:1}
+.conv-item .conv-del:hover{background:rgba(255,107,107,0.15)}
+/* ====== Status Badge ====== */
+.status-row{
+  display:flex;align-items:center;gap:12px;padding:6px 0;font-size:0.78em;
+}
+.status-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  animation:pulse 2s infinite;
+}
+.status-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.warn{background:var(--orange);box-shadow:0 0 6px var(--orange)}
+.status-dot.err{background:var(--red);box-shadow:0 0 6px var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+/* ====== Form Elements ====== */
+.form-group{margin-bottom:8px}
+.form-group label{display:block;font-size:0.72em;color:var(--text-secondary);margin-bottom:3px;font-weight:500}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:7px 10px;font-size:0.78em;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg-primary);color:var(--text-primary);
+  outline:none;transition:var(--transition);font-family:inherit;
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);
+}
+textarea{resize:vertical;min-height:60px}
+.form-row{display:flex;gap:8px}
+.form-row>*{flex:1}
+/* Buttons */
+.btn{
+  padding:7px 14px;border:none;border-radius:var(--radius-sm);
+  cursor:pointer;font-size:0.78em;font-weight:600;transition:var(--transition);
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#7c6ff7;box-shadow:0 2px 12px var(--accent-glow)}
+.btn-secondary{background:var(--bg-hover);color:var(--text-primary);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid transparent}
+.btn-ghost:hover{background:var(--bg-hover);color:var(--text-primary)}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:4px 10px;font-size:0.72em}
+.btn-block{width:100%}
+/* ====== Sidebar Footer ====== */
+.sidebar-footer{
+  padding:12px 16px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:6px;
+}
+/* ====== Chat Area ====== */
+.chat-container{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.chat-header{
+  padding:14px 24px;background:var(--bg-secondary);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.chat-header .title{font-weight:600;font-size:0.92em}
+.chat-header .subtitle{font-size:0.75em;color:var(--text-muted)}
+.chat-messages{
+  flex:1;overflow-y:auto;padding:24px;
+  display:flex;flex-direction:column;gap:20px;
+  scroll-behavior:smooth;
+}
+/* ====== Message Bubbles ====== */
+.message{display:flex;gap:12px;max-width:85%;animation:msgIn 0.3s ease}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.message.user{align-self:flex-end;flex-direction:row-reverse}
+.message.assistant{align-self:flex-start}
+.message .avatar{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:0.85em;
+}
+.message.user .avatar{background:linear-gradient(135deg,var(--accent),var(--accent-light))}
+.message.assistant .avatar{background:var(--bg-tertiary);border:1px solid var(--border)}
+.message .bubble{
+  padding:12px 16px;border-radius:16px;line-height:1.55;font-size:0.88em;
+  word-break:break-word;position:relative;
+}
+.message.user .bubble{
+  background:linear-gradient(135deg,var(--accent),#7c6ff7);
+  border-bottom-right-radius:4px;
+}
+.message.assistant .bubble{
+  background:var(--bg-tertiary);border:1px solid var(--border);
+  border-bottom-left-radius:4px;
+}
+/* Markdown in messages */
+.message .bubble code{
+  background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;
+  font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.88em;
+}
+.message .bubble pre{
+  background:rgba(0,0,0,0.4);padding:12px 16px;border-radius:8px;
+  overflow-x:auto;margin:8px 0;font-size:0.82em;
+}
+.message .bubble pre code{background:none;padding:0}
+.message .bubble table{
+  border-collapse:collapse;width:100%;margin:8px 0;font-size:0.85em;
+}
+.message .bubble th,.message .bubble td{
+  border:1px solid var(--border);padding:6px 10px;text-align:left;
+}
+.message .bubble th{background:rgba(108,92,231,0.15);font-weight:600}
+.message .bubble strong{color:var(--accent-light)}
+/* ====== Chat Input ====== */
+.chat-footer{
+  padding:16px 24px;background:var(--bg-secondary);border-top:1px solid var(--border);
+}
+.chat-input-wrap{
+  display:flex;gap:10px;align-items:center;
+  background:var(--bg-tertiary);border:1px solid var(--border);
+  border-radius:16px;padding:6px 6px 6px 18px;transition:var(--transition);
+}
+.chat-input-wrap:focus-within{
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);
+}
+.chat-input-wrap input{
+  flex:1;padding:10px 0;border:none;background:transparent;
+  color:var(--text-primary);font-size:0.9em;outline:none;font-family:inherit;
+}
+.chat-input-wrap input::placeholder{color:var(--text-muted)}
+.chat-input-wrap .btn-send{
+  width:38px;height:38px;border-radius:50%;background:var(--accent);
+  border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:var(--transition);flex-shrink:0;
+}
+.chat-input-wrap .btn-send:hover{background:#7c6ff7;transform:scale(1.05)}
+.chat-input-wrap .btn-send:disabled{background:var(--bg-hover);cursor:not-allowed;transform:none}
+.chat-input-wrap .btn-send svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2}
+.chat-input-wrap .btn-test{
+  background:var(--bg-hover);border:1px solid var(--border);color:var(--text-secondary);
+  padding:8px 14px;border-radius:20px;cursor:pointer;font-size:0.78em;
+  transition:var(--transition);white-space:nowrap;flex-shrink:0;
+}
+.chat-input-wrap .btn-test:hover{background:var(--border);color:var(--text-primary)}
+/* ====== Loading Dots ====== */
+.typing{display:flex;gap:4px;padding:4px 0}
+.typing span{
+  width:6px;height:6px;background:var(--text-muted);border-radius:50%;
+  animation:typeBounce 1.4s infinite;
+}
+.typing span:nth-child(2){animation-delay:0.2s}
+.typing span:nth-child(3){animation-delay:0.4s}
+@keyframes typeBounce{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-6px);opacity:1}}
+/* ====== Toast ====== */
+.toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{
+  padding:12px 20px;border-radius:var(--radius);font-size:0.82em;font-weight:500;
+  animation:toastIn 0.3s ease;max-width:360px;
+  backdrop-filter:blur(12px);border:1px solid;
+}
+.toast.success{background:rgba(81,207,102,0.15);border-color:var(--green);color:var(--green)}
+.toast.error{background:rgba(255,107,107,0.15);border-color:var(--red);color:var(--red)}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+/* ====== URL/Param Items ====== */
+.tag-list{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.tag{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+  background:var(--bg-primary);border:1px solid var(--border);
+  border-radius:20px;font-size:0.72em;transition:var(--transition);
+}
+.tag .tag-close{
+  cursor:pointer;opacity:0.5;font-size:1.1em;line-height:1;
+  transition:var(--transition);
+}
+.tag .tag-close:hover{opacity:1;color:var(--red)}
+/* ====== Empty State ====== */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty .empty-icon{font-size:2.5em;margin-bottom:12px;opacity:0.5}
+.empty .empty-text{font-size:0.85em;line-height:1.5}
+/* ====== Inline Param Editor ====== */
+.param-row{
+  display:flex;gap:6px;margin-bottom:4px;align-items:center;
+}
+.param-row input,.param-row select{
+  padding:5px 8px;font-size:0.74em;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg-primary);color:var(--text-primary);outline:none;
+  font-family:inherit;
+}
+.param-row input:focus,.param-row select:focus{border-color:var(--accent)}
+.param-row .param-name{flex:2}
+.param-row .param-value{flex:3}
+.param-row .param-type{flex:1}
+/* ====== Responsive ====== */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .chat-container{width:100%}
+  .message{max-width:92%}
+}
 </style>
 </head>
 <body>
+
+<!-- Sidebar -->
 <div class="sidebar">
-    <div class="sidebar-header">
-        <h2>AI API 助手</h2>
-        <button class="btn btn-primary btn-sm" onclick="newConversation()" title="新建对话">+ 新建</button>
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="icon">⚡</div>
+      <span>AI API Agent</span>
     </div>
-    <div class="sidebar-body">
-        <!-- Status -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">运行状态 <span class="arrow open">▶</span></div>
-            <div class="section-body open"><div class="status-block" id="status">加载中...</div></div>
-        </div>
+    <button class="btn btn-primary btn-sm" onclick="newConversation()">+ 新建</button>
+  </div>
 
-        <!-- Conversations -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">对话列表 <span class="arrow">▶</span></div>
-            <div class="section-body"><div class="conv-list" id="convList">加载中...</div></div>
-        </div>
-
-        <!-- Request Scenario -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">请求场景 <span class="arrow">▶</span></div>
-            <div class="section-body" id="scenarioBody">
-                <div class="form-group"><label>当前环境</label><select id="scenarioSelect" onchange="switchScenario()"></select></div>
-                <div class="form-group"><label>URL 映射（JSON 格式：{"源地址":"目标地址"}）</label>
-                    <textarea id="scenarioMapping" rows="3" style="width:100%;padding:5px;font-size:0.72em;border:1px solid #0f3460;border-radius:4px;background:#1a1a2e;color:#eee;resize:vertical;font-family:monospace;"></textarea>
-                </div>
-                <button class="btn btn-primary btn-sm" onclick="saveScenarioMapping()" style="width:100%">保存映射</button>
-            </div>
-        </div>
-
-        <!-- API Docs Config -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">API 文档地址 <span class="arrow">▶</span></div>
-            <div class="section-body" id="apiDocsBody">
-                <div class="url-list" id="urlList"></div>
-                <div class="form-row">
-                    <input type="text" id="newUrl" placeholder="http://127.0.0.1/api/xxx/v3/api-docs" style="flex:1;padding:5px 7px;font-size:0.78em;border:1px solid #0f3460;border-radius:4px;background:#1a1a2e;color:#eee;">
-                    <button class="btn btn-primary btn-sm" onclick="addUrl()">添加</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Model Config -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">AI 模型配置 <span class="arrow">▶</span></div>
-            <div class="section-body" id="modelBody">
-                <div class="form-group"><label>提供商</label><select id="modelProvider"><option value="openai">OpenAI 兼容</option><option value="ollama">Ollama 本地</option><option value="anthropic">Anthropic Claude</option></select></div>
-                <div class="form-group"><label>模型名称</label><input type="text" id="modelName" placeholder="gpt-4o"></div>
-                <div class="form-group"><label>API 地址</label><input type="text" id="modelBaseUrl"></div>
-                <div class="form-group"><label>API 密钥</label><input type="password" id="modelApiKey"></div>
-                <div class="form-row">
-                    <div class="form-group"><label>温度</label><input type="number" id="modelTemp" step="0.1" min="0" max="2"></div>
-                    <div class="form-group"><label>最大Token</label><input type="number" id="modelMaxTokens"></div>
-                </div>
-                <button class="btn btn-primary" onclick="saveModelConfig()" style="width:100%">保存模型配置</button>
-            </div>
-        </div>
-
-        <!-- Project Dir / Auto Login -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">项目设置 <span class="arrow">▶</span></div>
-            <div class="section-body" id="projectBody">
-                <div class="form-group"><label>项目源码目录</label><input type="text" id="projectDir" placeholder="D:/projects/my-app"></div>
-                <div class="form-group"><label>自动登录请求头</label><input type="text" id="autoLoginHeader" placeholder="X-Dts-Admin-Token"></div>
-                <div class="form-group"><label>登录提示</label><input type="text" id="autoLoginHint" placeholder="手机号"></div>
-                <label style="font-size:0.75em;display:flex;align-items:center;gap:6px;">
-                    <input type="checkbox" id="autoLoginEnabled" checked> 启用自动登录
-                </label>
-                <button class="btn btn-primary btn-sm" onclick="saveProjectSettings()" style="width:100%;margin-top:8px;">保存项目设置</button>
-            </div>
-        </div>
-
-        <!-- Global Params (per-conversation) -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">全局参数（当前对话）<span class="arrow">▶</span></div>
-            <div class="section-body" id="globalParamsBody">
-                <table class="param-table"><thead><tr><th>名称</th><th>值</th><th>类型</th><th></th></tr></thead><tbody id="paramsTbody"></tbody></table>
-                <button class="btn btn-primary btn-sm" onclick="addParam()" style="width:100%">+ 添加</button>
-                <button class="btn btn-secondary btn-sm" onclick="saveGlobalParams()" style="width:100%;margin-top:4px;">保存参数</button>
-            </div>
-        </div>
-
-        <!-- Tools -->
-        <div class="section">
-            <div class="section-header" onclick="toggleSection(this)">可用 API (<span id="toolCount">0</span>) <span class="arrow">▶</span></div>
-            <div class="section-body" id="toolsList" style="max-height:240px;overflow-y:auto;font-size:0.7em;"></div>
-        </div>
+  <div class="sidebar-body">
+    <!-- Status -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>📊 运行状态</span><span class="caret open">▶</span>
+      </div>
+      <div class="panel-body open" id="statusPanel">
+        <div class="status-row"><span class="status-dot" id="statusDot"></span><span id="statusText">连接中...</span></div>
+        <div style="font-size:0.74em;color:var(--text-muted);" id="statusDetail"></div>
+      </div>
     </div>
-    <div class="sidebar-footer">
-        <button class="btn btn-primary" onclick="reloadDocs()" id="reloadBtn">重新加载 API 文档</button>
-        <button class="btn btn-secondary" onclick="clearChat()">清除当前对话</button>
-        <div id="loadError" style="color:#e94560;font-size:0.68em;display:none;"></div>
+
+    <!-- Conversations -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>💬 对话列表</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body">
+        <div class="conv-list" id="convList">
+          <div style="color:var(--text-muted);font-size:0.78em;text-align:center;padding:12px">暂无对话</div>
+        </div>
+      </div>
     </div>
+
+    <!-- API Docs -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>📡 API 文档地址</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body">
+        <div class="tag-list" id="urlList"></div>
+        <div class="form-row" style="margin-top:4px">
+          <input type="text" id="newUrl" placeholder="输入 API 文档地址..." style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="addUrl()">添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Config -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>🤖 AI 模型</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label>提供商</label>
+          <select id="modelProvider">
+            <option value="openai">OpenAI 兼容</option>
+            <option value="ollama">Ollama 本地</option>
+            <option value="anthropic">Anthropic Claude</option>
+          </select>
+        </div>
+        <div class="form-group"><label>模型名</label><input id="modelName" placeholder="gpt-4o"></div>
+        <div class="form-group"><label>API 地址</label><input id="modelBaseUrl" placeholder="https://api.openai.com/v1"></div>
+        <div class="form-group"><label>密钥</label><input type="password" id="modelApiKey" placeholder="sk-..."></div>
+        <div class="form-row">
+          <div class="form-group"><label>温度</label><input type="number" id="modelTemp" step="0.1" min="0" max="2" value="0.1"></div>
+          <div class="form-group"><label>Max Token</label><input type="number" id="modelMaxTokens" value="4096"></div>
+        </div>
+        <button class="btn btn-primary btn-block btn-sm" onclick="saveModelConfig()">保存</button>
+      </div>
+    </div>
+
+    <!-- Scenario -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>🌐 请求场景</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-group"><label>当前环境</label><select id="scenarioSelect" onchange="switchScenario()"></select></div>
+        <div class="form-group"><label>URL 映射 (JSON)</label><textarea id="scenarioMapping" placeholder='{"源地址":"目标地址"}'></textarea></div>
+        <button class="btn btn-primary btn-block btn-sm" onclick="saveScenarioMapping()">保存映射</button>
+      </div>
+    </div>
+
+    <!-- Global Params -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>🔧 全局参数</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body">
+        <div id="paramsEditor"></div>
+        <button class="btn btn-ghost btn-block btn-sm" onclick="addParam()" style="margin-top:4px">+ 添加</button>
+        <button class="btn btn-primary btn-block btn-sm" onclick="saveGlobalParams()" style="margin-top:4px">保存参数</button>
+      </div>
+    </div>
+
+    <!-- Project -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>📂 项目设置</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-group"><label>源码目录</label><input id="projectDir" placeholder="D:/projects/backend"></div>
+        <div class="form-group"><label>登录请求头</label><input id="autoLoginHeader" value="X-Dts-Admin-Token"></div>
+        <div class="form-group"><label>登录提示</label><input id="autoLoginHint" value="手机号"></div>
+        <label style="font-size:0.75em;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="autoLoginEnabled" checked> 启用自动登录
+        </label>
+        <button class="btn btn-primary btn-block btn-sm" onclick="saveProjectSettings()" style="margin-top:8px">保存</button>
+      </div>
+    </div>
+
+    <!-- API Tools -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        <span>📋 可用接口 (<span id="toolCount">0</span>)</span><span class="caret">▶</span>
+      </div>
+      <div class="panel-body" id="toolsList" style="max-height:240px;overflow-y:auto;font-size:0.73em;"></div>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <button class="btn btn-primary btn-block" onclick="reloadDocs()" id="reloadBtn">🔄 重新加载</button>
+    <button class="btn btn-ghost btn-block" onclick="clearChat()">🗑 清除对话</button>
+    <div id="loadError" style="display:none;color:var(--red);font-size:0.7em;text-align:center;"></div>
+  </div>
 </div>
 
+<!-- Chat -->
 <div class="chat-container">
-    <div class="chat-header">
-        <span id="convTitle">对话</span>
-        <span style="font-size:0.75em;color:#888;" id="convSubtitle"></span>
+  <div class="chat-header">
+    <div>
+      <div class="title" id="convTitle">对话</div>
+      <div class="subtitle" id="convSubtitle"></div>
     </div>
-    <div class="chat-messages" id="messages">
-        <div class="message assistant">你好！我是 AI API 助手，直接告诉我想做什么。<br><br>💡 试试说：<b>"帮我测试资讯评价功能"</b></div>
+    <button class="btn btn-ghost btn-sm" onclick="quickTest()">🧪 测试</button>
+  </div>
+
+  <div class="chat-messages" id="messages">
+    <div class="empty">
+      <div class="empty-icon">⚡</div>
+      <div class="empty-text">
+        你好！我是 <strong>AI API 助手</strong><br>
+        直接描述需求，我会调用对应的后端接口<br><br>
+        试试说：<br>
+        <code>查询小鸡数据</code> &nbsp;·&nbsp; <code>帮我测试资讯评价功能</code><br>
+        <code>17335353405 登录后查订单</code>
+      </div>
     </div>
-    <div class="chat-input">
-        <input type="text" id="userInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter')sendMessage()">
-        <button id="sendBtn" onclick="sendMessage()">发送</button>
-        <button class="btn-test" onclick="quickTest()" title="快速测试功能">🧪 测试</button>
+  </div>
+
+  <div class="chat-footer">
+    <div class="chat-input-wrap">
+      <input type="text" id="userInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter')sendMessage()" autofocus>
+      <button class="btn-test" onclick="quickTest()" title="测试功能">🧪</button>
+      <button class="btn-send" id="sendBtn" onclick="sendMessage()" title="发送">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
     </div>
+  </div>
 </div>
 
-<script src="/static/app.js"></script>
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ==================== UTILS ====================
+const $ = id => document.getElementById(id);
+const toastContainer = $('toastContainer');
+
+function togglePanel(header) {
+  const caret = header.querySelector('.caret');
+  const body = header.nextElementSibling;
+  caret.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+function showToast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  toastContainer.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, 2500);
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Simple markdown-to-HTML
+function md2html(text) {
+  if (!text) return '';
+  let html = esc(text);
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Tables: | a | b | → <table>
+  if (html.includes('|') && html.includes('---')) {
+    const lines = html.split('\n');
+    let tableHtml = '<table>';
+    let inTable = false, headerDone = false;
+    const newLines = [];
+    for (const line of lines) {
+      if (line.includes('|') && line.trim().startsWith('|')) {
+        if (!inTable) { inTable = true; headerDone = false; }
+        const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
+        if (!headerDone && line.includes('---')) { headerDone = true; continue; }
+        const tag = headerDone ? 'td' : 'th';
+        headerDone = true;
+        tableHtml += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+      } else {
+        if (inTable) { tableHtml += '</table>'; inTable = false; newLines.push(tableHtml); tableHtml = '<table>'; }
+        newLines.push(line);
+      }
+    }
+    if (inTable) { tableHtml += '</table>'; newLines.push(tableHtml); }
+    html = newLines.join('\n');
+  }
+  // Code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  // Line breaks
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+function addMessage(role, text) {
+  const container = $('messages');
+  // Remove empty state
+  const emptyState = container.querySelector('.empty');
+  if (emptyState) emptyState.remove();
+
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = md2html(text);
+
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return bubble;
+}
+
+// ==================== STATE ====================
+let _currentConvId = '', _urls = [], _params = [], _scenarios = [], sending = false;
+
+// ==================== STATUS & TOOLS ====================
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status'); const d = await r.json();
+    const dot = $('statusDot'), text = $('statusText'), detail = $('statusDetail');
+    if (d.ready) {
+      dot.className = 'status-dot ok';
+      text.textContent = '系统就绪';
+      detail.innerHTML = `${d.model} · ${d.endpoints} 接口 · ${esc(d.current_conv||'')}`;
+    } else if (d.loading) {
+      dot.className = 'status-dot warn'; text.textContent = '加载中...';
+    } else {
+      dot.className = 'status-dot err'; text.textContent = '未就绪';
+      if (d.load_error) detail.textContent = d.load_error;
+    }
+  } catch(e) {
+    $('statusDot').className = 'status-dot err';
+    $('statusText').textContent = '连接失败';
+  }
+}
+
+async function loadTools() {
+  try {
+    const r = await fetch('/api/tools'); const d = await r.json();
+    $('toolCount').textContent = d.count;
+    const list = $('toolsList');
+    if (!d.tools?.length) { list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:8px">暂无</div>'; return; }
+    list.innerHTML = d.tools.slice(0, 150).map(t =>
+      `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:0.92em">
+        <div style="color:var(--accent-light);font-weight:500;font-family:monospace;font-size:0.9em">${esc(t.name)}</div>
+        <div style="color:var(--text-muted);margin-top:2px">${esc((t.description||'').substring(0,100))}</div>
+      </div>`
+    ).join('');
+    if (d.tools.length > 150) list.innerHTML += `<div style="color:var(--text-muted);text-align:center;padding:4px">+${d.tools.length-150} more</div>`;
+  } catch(e) { $('toolsList').innerHTML = '<div style="color:var(--text-muted)">加载失败</div>'; }
+}
+
+// ==================== CONVERSATIONS ====================
+async function loadConversations() {
+  try {
+    const r = await fetch('/api/conversations'); const d = await r.json();
+    _currentConvId = d.current_id;
+    const list = $('convList');
+    if (!d.conversations.length) { list.innerHTML = '<div style="color:var(--text-muted);font-size:0.78em;text-align:center;padding:12px">暂无</div>'; return; }
+    list.innerHTML = d.conversations.map(c =>
+      `<div class="conv-item${c.id===_currentConvId?' active':''}" onclick="switchConversation('${c.id}')">
+        <span class="conv-icon">💬</span>
+        <div class="conv-info">
+          <div class="conv-name">${esc(c.name)}</div>
+          <div class="conv-meta">${c.message_count||0} 条消息</div>
+        </div>
+        <span class="conv-del" onclick="event.stopPropagation();deleteConversation('${c.id}')">✕</span>
+      </div>`
+    ).join('');
+    const current = d.conversations.find(c => c.id === _currentConvId);
+    $('convTitle').textContent = current?.name || '对话';
+    $('convSubtitle').textContent = current ? `${current.message_count||0} 条消息` : '';
+  } catch(e) {}
+}
+
+async function newConversation() {
+  const name = prompt('对话名称：', '新对话'); if (!name) return;
+  const r = await fetch('/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const d = await r.json();
+  if (d.status === 'ok') {
+    $('messages').innerHTML = '<div class="empty"><div class="empty-icon">💬</div><div class="empty-text">新对话已创建</div></div>';
+    await Promise.all([loadConversations(),loadStatus(),loadTools()]);
+  }
+}
+
+async function switchConversation(id) {
+  const r = await fetch('/api/conversations/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  const d = await r.json();
+  if (d.status === 'ok') {
+    await Promise.all([loadConversations(),loadStatus(),loadTools()]);
+    const container = $('messages');
+    container.innerHTML = '';
+    const conv = d.conversation;
+    if (conv.messages?.length) {
+      conv.messages.forEach(m => { if (m.content) addMessage(m.role==='tool'?'system':m.role, m.content); });
+    } else {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">💬</div><div class="empty-text">已切换到「'+esc(conv.name)+'」</div></div>';
+    }
+    $('convTitle').textContent = conv.name;
+  }
+}
+
+async function deleteConversation(id) {
+  if (!confirm('确定删除？')) return;
+  await fetch('/api/conversations/'+id,{method:'DELETE'});
+  await loadConversations();
+  $('messages').innerHTML = '<div class="empty"><div class="empty-icon">💬</div><div class="empty-text">对话已删除</div></div>';
+}
+
+// ==================== CHAT ====================
+let _fullBubble = null;
+async function sendMessage() {
+  if (sending) return;
+  const text = $('userInput').value.trim(); if (!text) return;
+  $('userInput').value = ''; sending = true; $('sendBtn').disabled = true;
+
+  addMessage('user', text);
+  const bubble = addMessage('assistant', '');
+  bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  _fullBubble = bubble;
+
+  let fullText = '';
+  try {
+    const r = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
+    const reader = r.body.getReader(); const decoder = new TextDecoder();
+    while (true) {
+      const {done, value} = await reader.read(); if (done) break;
+      for (const line of decoder.decode(value).split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const d = JSON.parse(line.slice(6));
+          if (d.chunk) { fullText += d.chunk; bubble.innerHTML = md2html(fullText); $('messages').scrollTop = $('messages').scrollHeight; }
+          if (d.error) bubble.innerHTML = `<span style="color:var(--red)">出错了：${esc(d.error)}</span>`;
+        } catch(e) {}
+      }
+    }
+  } catch(e) { bubble.innerHTML = `<span style="color:var(--red)">连接失败：${esc(e.message)}</span>`; }
+  sending = false; $('sendBtn').disabled = false; $('userInput').focus();
+  loadConversations();
+}
+
+async function clearChat() {
+  await fetch('/api/clear',{method:'POST'}).catch(()=>{});
+  $('messages').innerHTML = '<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">对话已清除</div></div>';
+  loadConversations();
+}
+
+async function quickTest() {
+  const feature = prompt('测试功能名称：','资讯评价'); if (!feature) return;
+  $('userInput').value = '帮我测试'+feature+'功能'; sendMessage();
+}
+
+// ==================== CONFIG ====================
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config'); const d = await r.json();
+    _urls = d.api_docs?.urls||[]; renderUrlList();
+    _scenarios = d.api_scenarios?.list||[]; renderScenarios();
+    const m = d.model||{};
+    $('modelProvider').value = m.provider||'openai';
+    $('modelName').value = m.name||'';
+    $('modelBaseUrl').value = m.base_url||'';
+    $('modelApiKey').value = m.api_key||'';
+    $('modelTemp').value = m.temperature??0.1;
+    $('modelMaxTokens').value = m.max_tokens??4096;
+    _params = d.global_params||[]; renderParams();
+    $('projectDir').value = d.project_dir||'';
+    const al = d.auto_login||{};
+    $('autoLoginHeader').value = al.header_name||'X-Dts-Admin-Token';
+    $('autoLoginHint').value = al.login_hint||'手机号';
+    $('autoLoginEnabled').checked = al.enabled!==false;
+  } catch(e) { console.error(e); }
+}
+
+function renderUrlList() {
+  $('urlList').innerHTML = _urls.length ? _urls.map((u,i) =>
+    `<span class="tag">${esc(u)}<span class="tag-close" onclick="_urls.splice(${i},1);renderUrlList();saveApiDocs()">×</span></span>`
+  ).join('') : '<span style="color:var(--text-muted);font-size:0.75em">暂无</span>';
+}
+function addUrl() {
+  const v=$('newUrl').value.trim(); if(!v||_urls.includes(v))return;
+  _urls.push(v);$('newUrl').value='';renderUrlList();saveApiDocs();
+}
+async function saveApiDocs() {
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_docs:{urls:_urls,timeout:30}})});
+  showToast('已保存');
+}
+async function saveModelConfig() {
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:{
+    provider:$('modelProvider').value,name:$('modelName').value,base_url:$('modelBaseUrl').value,
+    api_key:$('modelApiKey').value,temperature:parseFloat($('modelTemp').value)||0.1,
+    max_tokens:parseInt($('modelMaxTokens').value)||4096
+  }})});
+  showToast('模型配置已保存');
+}
+
+// Params
+function renderParams() {
+  const el = $('paramsEditor');
+  if (!_params.length) { el.innerHTML='<div style="color:var(--text-muted);font-size:0.75em;text-align:center;padding:8px">暂无全局参数</div>'; return; }
+  el.innerHTML = _params.map((p,i) =>
+    `<div class="param-row">
+      <input class="param-name" placeholder="名称" value="${esc(p.name||'')}" onchange="_params[${i}].name=this.value">
+      <input class="param-value" placeholder="值" value="${esc(p.value||'')}" onchange="_params[${i}].value=this.value">
+      <select class="param-type" onchange="_params[${i}].type=this.value">
+        <option value="header" ${p.type==='header'?'selected':''}>Header</option>
+        <option value="query" ${p.type==='query'?'selected':''}>Query</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="_params.splice(${i},1);renderParams()" style="color:var(--red)">✕</button>
+    </div>`
+  ).join('');
+}
+function addParam() { _params.push({name:'',value:'',type:'header'}); renderParams(); }
+async function saveGlobalParams() {
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({global_params:_params})});
+  showToast('全局参数已保存');
+}
+
+// Scenarios
+function renderScenarios() {
+  const sel=$('scenarioSelect');
+  if(!_scenarios.length){sel.innerHTML='<option>暂无场景</option>';return;}
+  sel.innerHTML=_scenarios.map(s=>`<option value="${s.name}" ${s.name===(_scenarios._active||'default')?'selected':''}>${esc(s.name)} · ${esc(s.description||'')}</option>`).join('');
+  const active=_scenarios.find(s=>s.name===(_scenarios._active||'default'))||_scenarios[0];
+  $('scenarioMapping').value=JSON.stringify(active?.mapping||{},null,2);
+}
+async function switchScenario() {
+  const name=$('scenarioSelect').value;
+  const updated={active:name,list:_scenarios};
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_scenarios:updated})});
+  _scenarios._active=name;renderScenarios();
+  await fetch('/api/reload',{method:'POST'});await loadStatus();
+  showToast('已切换: '+name);
+}
+async function saveScenarioMapping() {
+  const name=$('scenarioSelect').value;let mapping={};
+  try{mapping=JSON.parse($('scenarioMapping').value)}catch(e){showToast('JSON 格式错误','error');return}
+  const s=_scenarios.find(s=>s.name===name);if(!s)return;s.mapping=mapping;
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_scenarios:{active:_scenarios._active||'default',list:_scenarios}})});
+  showToast('映射已保存');await fetch('/api/reload',{method:'POST'});await loadStatus();
+}
+
+// Project settings
+async function saveProjectSettings() {
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    project_dir:$('projectDir').value.trim(),
+    auto_login:{enabled:$('autoLoginEnabled').checked,header_name:$('autoLoginHeader').value.trim()||'X-Dts-Admin-Token',login_hint:$('autoLoginHint').value.trim()||'手机号'}
+  })});
+  showToast('项目设置已保存');await fetch('/api/reload',{method:'POST'});await loadStatus();
+}
+
+// Reload
+async function reloadDocs() {
+  const btn=$('reloadBtn');btn.disabled=true;btn.textContent='加载中...';
+  $('loadError').style.display='none';
+  try{
+    const r=await fetch('/api/reload',{method:'POST'});const d=await r.json();
+    if(d.load_error){$('loadError').style.display='block';$('loadError').textContent=d.load_error;showToast('加载失败','error')}
+    else showToast(`已加载 ${d.endpoints} 个接口`);
+    await Promise.all([loadStatus(),loadTools(),loadConversations()]);
+  }catch(e){showToast('加载失败','error')}
+  btn.disabled=false;btn.textContent='🔄 重新加载';
+}
+
+// ==================== INIT ====================
+loadStatus();loadTools();loadConfig();loadConversations();
+setInterval(loadStatus, 30000); // Poll status every 30s
+</script>
 </body>
 </html>

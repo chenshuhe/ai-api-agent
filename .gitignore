@@ -33,6 +33,12 @@ Thumbs.db
 # CodeArts IDE
 .codeartsdoer/
 
-# 临时文件
+# 日志
+logs/
 *.log
 *.tmp
+
+# 测试
+.pytest_cache/
+htmlcov/
+.coverage
